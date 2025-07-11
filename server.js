@@ -9,7 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // CONFIG
-const BOT_TOKEN = '7746909781:AAFdQYVaGvy1ONNS2bhPUxTF83VZ_Ap-r1o';
+const BOT_TOKEN = '7746909781:AAGEUSMWV5GfpUIcfHI8uq4JZj2Y02YEd4k';
 const CHANNEL_ID = '-1002493057827';
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
