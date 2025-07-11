@@ -1,7 +1,7 @@
 {
   "name": "telegram-bot-runner",
   "version": "1.0.0",
-  "description": "Node.js Telegram bot that runs user-submitted bot.js scripts",
+  "description": "Telegram bot to run user-submitted bot.js and Gemini AI chat",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
