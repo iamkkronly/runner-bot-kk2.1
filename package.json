@@ -1,7 +1,7 @@
 {
   "name": "telegram-bot-runner",
   "version": "1.0.0",
-  "description": "A Telegram bot that runs user-submitted bots via bot.js and package.json files.",
+  "description": "A Telegram bot that runs user-submitted bot.js scripts with persistent state and auto-restart",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -17,8 +17,8 @@
     "telegram",
     "bot",
     "runner",
-    "express",
-    "nodejs"
+    "nodejs",
+    "express"
   ],
   "author": "Kaustav Ray",
   "license": "MIT"
