@@ -1,7 +1,7 @@
 {
   "name": "telegram-bot-runner",
   "version": "1.0.0",
-  "description": "Node.js Telegram bot that runs user-submitted bot.js scripts",
+  "description": "A Telegram bot that runs user-submitted bots via bot.js and package.json files.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -9,5 +9,17 @@
   "dependencies": {
     "express": "^4.18.2",
     "node-telegram-bot-api": "^0.61.0"
-  }
+  },
+  "engines": {
+    "node": ">=14"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "runner",
+    "express",
+    "nodejs"
+  ],
+  "author": "Kaustav Ray",
+  "license": "MIT"
 }
