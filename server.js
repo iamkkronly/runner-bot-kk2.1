@@ -9,7 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // CONFIG
-const BOT_TOKEN = '7746909781:AAElOmLfq_i3BKvO22am_cSGIEd80DjMRAM';
+const BOT_TOKEN = '7746909781:AAHJj4_9kxWKP6A0KYb043p_q-NXXXDB-fg';
 const CHANNEL_ID = '-1002493057827';
 const ADMIN_IDS = ['7367349311']; // add more admin IDs if needed
 
